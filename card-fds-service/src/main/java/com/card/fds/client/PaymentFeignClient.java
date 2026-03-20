@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  * CARD-PAYMENT 서비스와 통신하는 Feign 클라이언트
  * url: 실제 PAYMENT 서비스가 띄워질 주소
  */
-@FeignClient(name = "payment-service", url = "${payment.service.url:http://192.168.0.17:9091}")
+@FeignClient(name = "payment-service", url = "${payment.service.url:http://localhost:9091}")
 public interface PaymentFeignClient {
 
     // PAYMENT 서비스의 결제 처리 API 엔드포인트
