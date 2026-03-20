@@ -101,7 +101,7 @@ class PaymentProcessorServiceTest {
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
-                .thenReturn(new WithdrawResponse(true, "출금 성공"));
+                .thenReturn(createWithdrawResponse(true));
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -149,7 +149,7 @@ class PaymentProcessorServiceTest {
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
-                .thenReturn(new WithdrawResponse(false, "잔액 부족"));
+                .thenReturn(createWithdrawResponse(false));
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -196,7 +196,7 @@ class PaymentProcessorServiceTest {
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
-                .thenReturn(new WithdrawResponse(true, "출금 성공"));
+                .thenReturn(createWithdrawResponse(true));
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -394,5 +394,13 @@ class PaymentProcessorServiceTest {
 
         // Then
         verify(authorizationRepository).save(any(Authorization.class));
+    }
+
+    private WithdrawResponse createWithdrawResponse(boolean success) {
+        WithdrawResponse response = new WithdrawResponse();
+        response.setSuccess(success);
+        response.setResponseCode(success ? "00" : "51");
+        response.setResponseMessage(success ? "출금 성공" : "잔액 부족");
+        return response;
     }
 }
