@@ -26,44 +26,41 @@ public class FdsInspectionService {
 
     /**
      * FDS 메인 검증 로직
+     * @return DB에서 확인한 '진짜' 카드 타입 (CREDIT or DEBIT)
      */
-    public void inspect(FdsRequestDto request) {
+    public String inspect(FdsRequestDto request) {
         String cardNum = request.getCardNum();
         log.info("[FDS 검증 시작] 카드번호: {}", cardNum);
 
         // 단기 다발성 거래 검사 (Rule 1)
         checkSessionFrequency(cardNum);
 
-        // 카드 활성화 상태 검사 (Rule 2)
-        checkCardStatus(cardNum);
+        // 카드 활성화 상태 검사 (Rule 2)를 하면서 Card 엔티티를 반환
+        Card card = checkCardStatus(cardNum);
 
-        log.info("[FDS 검증 통과] 정상적인 요청입니다. PAYMENT 서비스로 이관을 준비합니다.");
+        log.info("[FDS 검증 통과] 정상적인 요청입니다. 진짜 카드타입: {}", card.getCardType());
+
+        return card.getCardType().toString();
     }
 
-    /**
-     * [Rule 1] 3초 이내 중복 결제 차단
-     */
     private void checkSessionFrequency(String cardNum) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime lastRequestTime = sessionMemory.get(cardNum);
 
         if (lastRequestTime != null) {
             long secondsBetween = ChronoUnit.SECONDS.between(lastRequestTime, now);
-
             if (secondsBetween < 3) {
                 log.warn("[FDS_BLOCKED] 3초 이내 다발성 거래 감지! ({}초 경과)", secondsBetween);
                 throw new FdsException("FDS_BLOCKED: 단기 다발성 거래로 차단되었습니다.");
             }
         }
-
-        // 검증 통과 시 현재 시간으로 타임스탬프 갱신
         sessionMemory.put(cardNum, now);
     }
 
     /**
      * [Rule 2] 카드 활성화 상태 검증
      */
-    private void checkCardStatus(String cardNum) {
+    private Card checkCardStatus(String cardNum) {
         Card card = cardRepo.findByCardNumber(cardNum)
                 .orElseThrow(() -> new FdsException("카드를 찾을 수 없습니다."));
 
@@ -71,5 +68,7 @@ public class FdsInspectionService {
             log.warn("[INVALID_STATE] 비활성 카드 결제 시도! 상태: {}", card.getCardStatus());
             throw new FdsException("INVALID_STATE: 사용 불가능한 카드입니다.");
         }
+
+        return card;
     }
 }

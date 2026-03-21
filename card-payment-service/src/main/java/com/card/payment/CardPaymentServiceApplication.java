@@ -6,7 +6,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
- * 카드 승인 서비스 애플리케이션
+ * 카드 결제 승인 서비스 애플리케이션
  */
 @SpringBootApplication
 @EnableFeignClients
