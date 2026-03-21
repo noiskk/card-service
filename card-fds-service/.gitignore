@@ -4,7 +4,8 @@
 *.iws
 *.ipr
 /shelf/
-/.idea/workspace.xml
+/workspace.xml
+bin/
 
 # Gradle
 .gradle/
