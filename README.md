@@ -298,3 +298,19 @@ private PaymentResponse processCredit(String transactionId, Card card, PaymentRe
 | **`status`** | `AuthorizationStatus` (Enum) | `status` | `NOT NULL` | 승인 상태 (APPROVED, REJECTED, CONFIRMED) |
 | **`createdAt`** | `LocalDateTime` | `created_at` | `NOT NULL`, `Updatable=false` | 생성 일시 (Auditing 자동 생성) |
 | **`authorizationDate`** | `LocalDateTime` | `authorization_date` | `NOT NULL`, `Updatable=false` | 승인 일시 (Auditing 자동 생성) |
+
+
+---
+
+
+## 🔧 추가 구현/확장 가능 사항
+
+**1. 신용카드 동시성 제어 (Pessimistic Lock)**
+
+현재 신용카드 `usedAmount` 누적 시 동시성 제어가 적용되어 있지 않아, 동일 카드로 동시 요청이 들어올 경우 누적 금액이 정확하지 않을 수 있다.
+bank-service와 동일하게 `@Lock(LockModeType.PESSIMISTIC_WRITE)`를 적용하여 race condition을 방지할 수 있다.
+
+**2. 신용카드 월말 정산 시스템**
+
+현재는 결제 승인(Authorization) 단계까지만 구현되어 있으며, 실제 계좌 출금은 이루어지지 않는다.
+`@Scheduled` 기반 정산 배치를 추가하여 매월 말 `usedAmount`만큼 청구 계좌에서 출금하고, `usedAmount`를 초기화하는 방식으로 확장할 수 있다.
