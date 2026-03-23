@@ -11,7 +11,7 @@ VAN으로부터 결제 요청을 수신하면, FDS 이상거래 탐지를 거친
 
 ## 🏗️ MSA 구조
 
-card-service는 하나의 카드사 도메인을 **FDS(이상거래탐지)**와 **Payment(결제처리)** 두 개의 마이크로서비스로 분리하여 구성했다.
+card-service는 하나의 카드사 도메인을 FDS(이상거래탐지)와 Payment(결제처리) 두 개의 마이크로서비스로 분리하여 구성했다.
 
 ```
 card-service/
@@ -60,7 +60,7 @@ card-payment-service ── 카드 타입 분기
 **card-fds-service → card-payment-service**
 * [PaymentFeignClient.java](https://github.com/fisa-msa-project/card-service/blob/main/card-fds-service/src/main/java/com/card/fds/client/PaymentFeignClient.java)
 ```java
-@FeignClient(name = "payment-service", url = "${payment.service.url:http://192.168.0.17:9091}")
+@FeignClient(name = "payment-service", url = "${payment.service.url}")
 public interface PaymentFeignClient {
 
     @PostMapping("/api/card/payments/process")
