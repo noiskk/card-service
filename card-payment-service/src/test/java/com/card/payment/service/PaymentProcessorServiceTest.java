@@ -9,6 +9,9 @@ import com.card.payment.entity.Authorization;
 import com.card.payment.entity.Card;
 import com.card.payment.entity.CardStatus;
 import com.card.payment.entity.CardType;
+import com.card.payment.exception.CardNotFoundException;
+import com.card.payment.exception.DownstreamCallFailedException;
+import com.card.payment.exception.InvalidCardTypeException;
 import com.card.payment.repository.AuthorizationRepository;
 import com.card.payment.repository.CardInfoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -166,25 +169,20 @@ class PaymentProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("체크카드 결제 - 은행 서비스 예외 발생 시 시스템 오류")
+    @DisplayName("체크카드 결제 - 은행 서비스 예외 발생 시 DownstreamCallFailedException 전파 (Authorization 저장 안 함)")
     void processDebit_BankServiceException() {
         // Given
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
                 .thenThrow(new RuntimeException("은행 서비스 연결 실패"));
-        when(authorizationRepository.save(any(Authorization.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(debitPaymentRequest);
+        // When & Then
+        assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
+                .isInstanceOf(DownstreamCallFailedException.class);
 
-        // Then
-        assertThat(response.isSuccess()).isFalse();
-        assertThat(response.getResponseCode()).isEqualTo("96");
-        assertThat(response.getMessage()).contains("시스템 오류");
-
-        verify(authorizationRepository).save(any(Authorization.class));
+        // 출금 성공 여부를 알 수 없으므로 REJECTED로 단정해 기록하지 않는다
+        verify(authorizationRepository, never()).save(any(Authorization.class));
     }
 
     @Test
@@ -366,8 +364,22 @@ class PaymentProcessorServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(CardNotFoundException.class)
                 .hasMessageContaining("카드 정보를 찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("카드 타입이 DEBIT/CREDIT이 아니면 InvalidCardTypeException")
+    void process_InvalidCardType() {
+        // Given
+        debitPaymentRequest.setCardType("BITCOIN");
+        when(cardInfoRepository.findByCardNumber("4111111111111111"))
+                .thenReturn(Optional.of(debitCard));
+
+        // When & Then
+        assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
+                .isInstanceOf(InvalidCardTypeException.class)
+                .hasMessageContaining("BITCOIN");
     }
 
     @Test

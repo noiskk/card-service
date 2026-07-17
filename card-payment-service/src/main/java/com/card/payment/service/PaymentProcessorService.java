@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.card.payment.exception.CardNotFoundException;
+import com.card.payment.exception.DownstreamCallFailedException;
+import com.card.payment.exception.InvalidCardTypeException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -37,10 +40,15 @@ public class PaymentProcessorService {
 
         // 카드 조회
         Card card = cardInfoRepository.findByCardNumber(request.getCardNum())
-                .orElseThrow(() -> new IllegalArgumentException("카드 정보를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CardNotFoundException(transactionId, request.getCardNum()));
 
         // 카드 타입에 따라 분기
-        CardType cardType = CardType.valueOf(request.getCardType());
+        CardType cardType;
+        try{
+            cardType = CardType.valueOf(request.getCardType());
+        } catch (IllegalArgumentException e){
+            throw new InvalidCardTypeException(transactionId, request.getCardType());
+        }
 
         PaymentResponse response;
         if (cardType == CardType.DEBIT) {
@@ -68,27 +76,27 @@ public class PaymentProcessorService {
             return saveAndRespond(transactionId, card, request, "61", "1회 결제 한도 초과", false);
         }
 
+        // 2. 은행 출금 요청
+        WithdrawResponse withdrawResponse;
         try {
-            // 2. 은행 출금 요청
-            WithdrawResponse withdrawResponse = bankClient.withdraw(
+            withdrawResponse = bankClient.withdraw(
                     new WithdrawRequest(request.getCardNum(), request.getAmount()));
-
-            // 3. 출금 실패
-            if (!withdrawResponse.isSuccess()) {
-                log.warn("출금 실패 - 거래ID: {}", transactionId);
-                return saveAndRespond(transactionId, card, request, "51", "출금 실패",
-                        false);
-            }
-
-            // 4. 성공
-            log.info("체크카드 결제 성공 - 거래ID: {}", transactionId);
-            return saveAndRespond(transactionId, card, request, "00", "결제 성공", true);
-
         } catch (Exception e) {
-            log.error("체크카드 결제 오류 - 거래ID: {}", transactionId, e);
-            return saveAndRespond(transactionId, card, request, "96", "시스템 오류",
+            // 은행 호출 자체가 실패 - 출금 성공 여부를 알 수 없다.
+            // REJECTED로 단정해 기록하지 않고 예외를 전파한다 (3단계 Saga가 다룰 대상).
+            throw new DownstreamCallFailedException(transactionId, request.getAmount(), e);
+        }
+
+        // 3. 출금 실패 (은행이 명시적으로 거절 - 이건 확실한 결과라 REJECTED 기록해도 됨)
+        if (!withdrawResponse.isSuccess()) {
+            log.warn("출금 실패 - 거래ID: {}", transactionId);
+            return saveAndRespond(transactionId, card, request, "51", "출금 실패",
                     false);
         }
+
+        // 4. 성공
+        log.info("체크카드 결제 성공 - 거래ID: {}", transactionId);
+        return saveAndRespond(transactionId, card, request, "00", "결제 성공", true);
     }
 
     /**

@@ -31,29 +31,15 @@ public class TransactionController {
                 request.getCardNum(), request.getAmount(),
                 request.getMerchantId(), request.getCardType());
 
-        try {
-            PaymentResponse response = paymentProcessorService.process(request);
+        PaymentResponse response = paymentProcessorService.process(request);
 
-            if (response.isSuccess()) {
-                log.info("결제 성공 - 거래ID: {}", response.getTransactionId());
-            } else {
-                log.warn("결제 실패 - 거래ID: {}, 코드: {}",
-                        response.getTransactionId(), response.getResponseCode());
-            }
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("결제 처리 중 예외 발생", e);
-
-            PaymentResponse errorResponse = PaymentResponse.builder()
-                    .responseCode("96")
-                    .message("시스템 오류: " + e.getMessage())
-                    .amount(request.getAmount())
-                    .success(false)
-                    .build();
-
-            return ResponseEntity.internalServerError().body(errorResponse);
+        if (response.isSuccess()) {
+            log.info("결제 성공 - 거래ID: {}", response.getTransactionId());
+        } else {
+            log.warn("결제 실패 - 거래ID: {}, 코드: {}",
+                    response.getTransactionId(), response.getResponseCode());
         }
+
+        return ResponseEntity.ok(response);
     }
 }
