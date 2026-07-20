@@ -3,7 +3,9 @@ package com.card.fds.service;
 import com.card.fds.dto.FdsRequestDto;
 import com.card.fds.entity.Card;
 import com.card.fds.entity.CardStatus;
-import com.card.fds.exception.FdsException; // 👈 우리가 만든 예외 임포트!
+import com.card.fds.exception.CardNotFoundException;
+import com.card.fds.exception.DuplicateTransactionException;
+import com.card.fds.exception.InactiveCardException;
 import com.card.fds.repository.CardInfoReadOnlyRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +53,7 @@ public class FdsInspectionService {
             long secondsBetween = ChronoUnit.SECONDS.between(lastRequestTime, now);
             if (secondsBetween < 3) {
                 log.warn("[FDS_BLOCKED] 3초 이내 다발성 거래 감지! ({}초 경과)", secondsBetween);
-                throw new FdsException("FDS_BLOCKED: 단기 다발성 거래로 차단되었습니다.");
+                throw new DuplicateTransactionException();
             }
         }
         sessionMemory.put(cardNum, now);
@@ -62,11 +64,11 @@ public class FdsInspectionService {
      */
     private Card checkCardStatus(String cardNum) {
         Card card = cardRepo.findByCardNumber(cardNum)
-                .orElseThrow(() -> new FdsException("카드를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CardNotFoundException(cardNum));
 
         if (card.getCardStatus() != CardStatus.ACTIVE) {
             log.warn("[INVALID_STATE] 비활성 카드 결제 시도! 상태: {}", card.getCardStatus());
-            throw new FdsException("INVALID_STATE: 사용 불가능한 카드입니다.");
+            throw new InactiveCardException(card.getCardStatus().toString());
         }
 
         return card;

@@ -2,7 +2,9 @@ package com.card.fds.controller;
 
 import com.card.fds.client.PaymentFeignClient;
 import com.card.fds.dto.FdsRequestDto;
+import com.card.fds.exception.DownstreamCallFailedException;
 import com.card.fds.service.FdsInspectionService;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +40,12 @@ public class FdsController {
                 updatedRequest.getCardNum(), updatedRequest.getCardType());
 
         // 3. 보정이 완료된 새로운 요청 객체를 PAYMENT 서비스로 이관
-        return paymentFeignClient.processPayment(updatedRequest);
+        //    payment의 비즈니스 응답(한도초과 등)은 200으로 오므로 Feign이 예외를 안 던지고 그대로 relay된다.
+        //    payment가 진짜로 죽으면(5xx) FeignException -> 시스템 실패로 전파.
+        try {
+            return paymentFeignClient.processPayment(updatedRequest);
+        } catch (FeignException e) {
+            throw new DownstreamCallFailedException(e);
+        }
     }
 }
