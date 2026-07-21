@@ -34,6 +34,7 @@ public class FdsController {
                 .amount(request.getAmount())
                 .merchantId(request.getMerchantId())
                 .cardType(realCardType)
+                .idempotencyKey(request.getIdempotencyKey())
                 .build();
 
         log.info("[FDS -> PAYMENT] 요청 이관: cardNum={}, cardType={}",
