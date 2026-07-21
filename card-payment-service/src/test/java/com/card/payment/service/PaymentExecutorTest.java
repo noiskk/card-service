@@ -30,12 +30,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * PaymentProcessorService 단위 테스트
- * 체크카드(은행 출금) 및 신용카드(한도 검사) 결제 로직을 테스트합니다.
+ * PaymentExecutor 단위 테스트
+ * 체크카드(은행 출금) 및 신용카드(한도 검사) 결제 실행 로직을 테스트합니다.
+ * (멱등성 조율은 PaymentProcessorService/통합 테스트가 담당)
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("PaymentProcessorService 테스트")
-class PaymentProcessorServiceTest {
+@DisplayName("PaymentExecutor 테스트")
+class PaymentExecutorTest {
 
     @Mock
     private CardInfoRepository cardInfoRepository;
@@ -47,7 +48,7 @@ class PaymentProcessorServiceTest {
     private BankClient bankClient;
 
     @InjectMocks
-    private PaymentProcessorService paymentProcessorService;
+    private PaymentExecutor paymentExecutor;
 
     private Card debitCard;
     private Card creditCard;
@@ -78,7 +79,6 @@ class PaymentProcessorServiceTest {
                 .customerId(2L)
                 .build();
 
-        // 체크카드 결제 요청
         debitPaymentRequest = PaymentRequest.builder()
                 .cardNum("4111111111111111")
                 .amount(50000L)
@@ -86,7 +86,6 @@ class PaymentProcessorServiceTest {
                 .cardType("DEBIT")
                 .build();
 
-        // 신용카드 결제 요청
         creditPaymentRequest = PaymentRequest.builder()
                 .cardNum("6011111111111117")
                 .amount(100000L)
@@ -100,7 +99,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("체크카드 결제 - 성공")
     void processDebit_Success() {
-        // Given
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
@@ -108,10 +106,8 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(debitPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getResponseCode()).isEqualTo("00");
         assertThat(response.getMessage()).isEqualTo("결제 성공");
@@ -125,7 +121,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("체크카드 결제 - 1회 결제 한도 초과로 실패 (은행 호출 안함)")
     void processDebit_PerTransactionLimitExceeded() {
-        // Given: perTransactionLimit=1,000,000, 요청=1,500,000
         debitPaymentRequest.setAmount(1500000L);
 
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
@@ -133,10 +128,8 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(debitPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getResponseCode()).isEqualTo("61");
         assertThat(response.getMessage()).contains("한도 초과");
@@ -148,7 +141,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("체크카드 결제 - 은행 출금 실패")
     void processDebit_WithdrawFailed() {
-        // Given
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
@@ -156,10 +148,8 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(debitPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getResponseCode()).isEqualTo("51");
         assertThat(response.getMessage()).contains("출금 실패");
@@ -171,24 +161,20 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("체크카드 결제 - 은행 서비스 예외 발생 시 DownstreamCallFailedException 전파 (Authorization 저장 안 함)")
     void processDebit_BankServiceException() {
-        // Given
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
         when(bankClient.withdraw(any(WithdrawRequest.class)))
                 .thenThrow(new RuntimeException("은행 서비스 연결 실패"));
 
-        // When & Then
-        assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
+        assertThatThrownBy(() -> paymentExecutor.execute(debitPaymentRequest))
                 .isInstanceOf(DownstreamCallFailedException.class);
 
-        // 출금 성공 여부를 알 수 없으므로 REJECTED로 단정해 기록하지 않는다
         verify(authorizationRepository, never()).save(any(Authorization.class));
     }
 
     @Test
     @DisplayName("체크카드 결제 - 1회 한도와 정확히 같은 금액은 성공")
     void processDebit_ExactPerTransactionLimit() {
-        // Given: perTransactionLimit=1,000,000, 요청=1,000,000
         debitPaymentRequest.setAmount(1000000L);
 
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
@@ -198,10 +184,8 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(debitPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getResponseCode()).isEqualTo("00");
 
@@ -213,8 +197,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - 성공 + usedAmount 누적 확인")
     void processCredit_Success_UsedAmountUpdated() {
-        // Given: perTransactionLimit=500,000, creditLimit=5,000,000, usedAmount=1,000,000
-        // 요청=100,000 → 결제 후 usedAmount=1,100,000
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
                 .thenReturn(Optional.of(creditCard));
         when(cardInfoRepository.save(any(Card.class)))
@@ -222,14 +204,12 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getResponseCode()).isEqualTo("00");
         assertThat(response.getMessage()).isEqualTo("결제 성공");
-        assertThat(creditCard.getUsedAmount()).isEqualTo(1100000L); // 1,000,000 + 100,000
+        assertThat(creditCard.getUsedAmount()).isEqualTo(1100000L);
 
         verify(cardInfoRepository).save(creditCard);
         verify(bankClient, never()).withdraw(any(WithdrawRequest.class));
@@ -239,7 +219,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - 1회 결제 한도 초과로 실패 (usedAmount 변경 없음)")
     void processCredit_PerTransactionLimitExceeded() {
-        // Given: perTransactionLimit=500,000, 요청=600,000
         creditPaymentRequest.setAmount(600000L);
 
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
@@ -247,13 +226,11 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getResponseCode()).isEqualTo("61");
-        assertThat(creditCard.getUsedAmount()).isEqualTo(1000000L); // 변경 없음
+        assertThat(creditCard.getUsedAmount()).isEqualTo(1000000L);
 
         verify(cardInfoRepository, never()).save(any(Card.class));
         verify(authorizationRepository).save(any(Authorization.class));
@@ -262,23 +239,20 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - 신용 잔여 한도 초과로 실패 (usedAmount 변경 없음)")
     void processCredit_CreditLimitExceeded() {
-        // Given: creditLimit=5,000,000, usedAmount=1,000,000 → 잔여=4,000,000, 요청=4,500,000
         creditPaymentRequest.setAmount(4500000L);
-        creditCard.setPerTransactionLimit(5000000L); // 1회 한도는 통과하도록
+        creditCard.setPerTransactionLimit(5000000L);
 
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
                 .thenReturn(Optional.of(creditCard));
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getResponseCode()).isEqualTo("51");
         assertThat(response.getMessage()).contains("신용 한도 초과");
-        assertThat(creditCard.getUsedAmount()).isEqualTo(1000000L); // 변경 없음
+        assertThat(creditCard.getUsedAmount()).isEqualTo(1000000L);
 
         verify(cardInfoRepository, never()).save(any(Card.class));
         verify(authorizationRepository).save(any(Authorization.class));
@@ -287,9 +261,8 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - 잔여 한도와 정확히 같은 금액 성공")
     void processCredit_ExactRemainingLimit() {
-        // Given: creditLimit=5,000,000, usedAmount=1,000,000 → 잔여=4,000,000, 요청=4,000,000
         creditPaymentRequest.setAmount(4000000L);
-        creditCard.setPerTransactionLimit(5000000L); // 1회 한도는 통과하도록
+        creditCard.setPerTransactionLimit(5000000L);
 
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
                 .thenReturn(Optional.of(creditCard));
@@ -298,13 +271,11 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isTrue();
         assertThat(response.getResponseCode()).isEqualTo("00");
-        assertThat(creditCard.getUsedAmount()).isEqualTo(5000000L); // 1,000,000 + 4,000,000 = 한도 꽉 참
+        assertThat(creditCard.getUsedAmount()).isEqualTo(5000000L);
 
         verify(cardInfoRepository).save(creditCard);
     }
@@ -312,7 +283,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - creditLimit이 null인 경우 실패")
     void processCredit_NullCreditLimit() {
-        // Given
         creditCard.setCreditLimit(null);
 
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
@@ -320,10 +290,8 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isFalse();
         assertThat(response.getResponseCode()).isEqualTo("51");
 
@@ -333,7 +301,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("신용카드 결제 - usedAmount가 null인 경우 0으로 처리되어 성공")
     void processCredit_NullUsedAmount() {
-        // Given: usedAmount=null → 0으로 처리, 잔여한도=5,000,000
         creditCard.setUsedAmount(null);
 
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
@@ -343,12 +310,10 @@ class PaymentProcessorServiceTest {
         when(authorizationRepository.save(any(Authorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // When
-        PaymentResponse response = paymentProcessorService.process(creditPaymentRequest);
+        PaymentResponse response = paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         assertThat(response.isSuccess()).isTrue();
-        assertThat(creditCard.getUsedAmount()).isEqualTo(100000L); // 0 + 100,000
+        assertThat(creditCard.getUsedAmount()).isEqualTo(100000L);
 
         verify(cardInfoRepository).save(creditCard);
     }
@@ -358,12 +323,10 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("카드 조회 실패 - 존재하지 않는 카드번호")
     void process_CardNotFound() {
-        // Given
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.empty());
 
-        // When & Then
-        assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
+        assertThatThrownBy(() -> paymentExecutor.execute(debitPaymentRequest))
                 .isInstanceOf(CardNotFoundException.class)
                 .hasMessageContaining("카드 정보를 찾을 수 없습니다");
     }
@@ -371,13 +334,11 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("카드 타입이 DEBIT/CREDIT이 아니면 InvalidCardTypeException")
     void process_InvalidCardType() {
-        // Given
         debitPaymentRequest.setCardType("BITCOIN");
         when(cardInfoRepository.findByCardNumber("4111111111111111"))
                 .thenReturn(Optional.of(debitCard));
 
-        // When & Then
-        assertThatThrownBy(() -> paymentProcessorService.process(debitPaymentRequest))
+        assertThatThrownBy(() -> paymentExecutor.execute(debitPaymentRequest))
                 .isInstanceOf(InvalidCardTypeException.class)
                 .hasMessageContaining("BITCOIN");
     }
@@ -385,7 +346,6 @@ class PaymentProcessorServiceTest {
     @Test
     @DisplayName("승인 이력이 정상적으로 저장되는지 확인")
     void process_AuthorizationSaved() {
-        // Given
         when(cardInfoRepository.findByCardNumber("6011111111111117"))
                 .thenReturn(Optional.of(creditCard));
         when(cardInfoRepository.save(any(Card.class)))
@@ -401,10 +361,8 @@ class PaymentProcessorServiceTest {
                     return saved;
                 });
 
-        // When
-        paymentProcessorService.process(creditPaymentRequest);
+        paymentExecutor.execute(creditPaymentRequest);
 
-        // Then
         verify(authorizationRepository).save(any(Authorization.class));
     }
 

@@ -24,4 +24,7 @@ public class PaymentRequest {
 
     @Schema(description = "카드 타입 (CREDIT / DEBIT)", example = "DEBIT", required = true)
     private String cardType;
+
+    @Schema(description = "멱등키 (원점 POS가 발급, 재시도해도 동일한 값)", example = "POS42-20260722-0001")
+    private String idempotencyKey;
 }
