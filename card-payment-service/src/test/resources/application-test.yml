@@ -18,10 +18,14 @@ spring:
         format_sql: true
     show-sql: false
 
-# @FeignClient(url = ${bank.service.url}) 플레이스홀더 해소용 (테스트에선 BankClient를 @MockBean으로 대체)
+# @FeignClient(url = ...) 플레이스홀더 해소용 (테스트에선 Feign 클라이언트를 @MockBean으로 대체)
 bank:
   service:
     url: http://localhost:8080
+
+ledger:
+  service:
+    url: http://localhost:9094
 
 logging:
   level:

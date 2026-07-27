@@ -1,9 +1,10 @@
 package com.card.payment.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -13,16 +14,18 @@ import java.time.LocalDateTime;
 /**
  * 카드 엔티티
  * 카드 정보를 저장하며, 신용카드와 체크카드를 모두 지원합니다.
+ *
+ * 상태 변경은 열린 setter가 아니라 도메인 메서드로만 가능하다.
  */
 @Entity
 @Table(name = "cards")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter
 @Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @EntityListeners(AuditingEntityListener.class)
 public class Card {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -69,4 +72,31 @@ public class Card {
     @Column(name = "expiry_date")
     private LocalDateTime expiryDate;
 
+    /**
+     * 신용카드 누적 사용액을 결제 금액만큼 증가시킨다.
+     * usedAmount가 바뀌는 유일한 통로.
+     */
+    public void recordCreditUsage(long amount) {
+        long current = (usedAmount != null) ? usedAmount : 0L;
+        this.usedAmount = current + amount;
+    }
+
+    /**
+     * 승인 취소·보상 시 누적 사용액을 되돌린다.
+     */
+    public void cancelCreditUsage(long amount) {
+        long current = (usedAmount != null) ? usedAmount : 0L;
+        this.usedAmount = Math.max(0L, current - amount);
+    }
+
+    /**
+     * 신용카드 잔여 한도. 한도가 설정되지 않았으면 0으로 본다.
+     */
+    public long remainingCredit() {
+        if (creditLimit == null) {
+            return 0L;
+        }
+        long used = (usedAmount != null) ? usedAmount : 0L;
+        return creditLimit - used;
+    }
 }
