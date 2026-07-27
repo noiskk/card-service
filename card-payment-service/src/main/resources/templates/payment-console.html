@@ -1,113 +1,156 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>승인 서비스 관제 — card-payment-service</title>
-    <style>
-        :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --text:#e2e8f0; --dim:#94a3b8;
-                --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --accent:#38bdf8; }
-        * { box-sizing:border-box; }
-        body { margin:0; padding:32px; background:var(--bg); color:var(--text);
-               font-family:'Noto Sans KR',-apple-system,sans-serif; }
-        h1 { font-size:20px; font-weight:500; margin:0 0 4px; }
-        h2 { font-size:15px; font-weight:500; margin:28px 0 12px; color:var(--dim); }
-        .sub { color:var(--dim); font-size:13px; }
-        .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px;
-                 background:#0369a1; color:#e0f2fe; margin-left:8px; }
-        .kpi { display:flex; gap:12px; margin:16px 0; }
-        .kpi div { background:var(--card); border:1px solid var(--line); border-radius:10px;
-                   padding:12px 18px; font-size:13px; color:var(--dim); }
-        .kpi b { display:block; font-size:22px; font-weight:500; margin-top:2px; color:var(--text); }
-        .kpi .alert b { color:var(--warn); }
-        .kpi .danger b { color:var(--bad); }
-        table { width:100%; border-collapse:collapse; background:var(--card);
-                border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-        th { text-align:left; font-weight:500; font-size:12px; color:var(--dim);
-             padding:10px 12px; border-bottom:1px solid var(--line); }
-        td { padding:10px 12px; font-size:13px; border-bottom:1px solid #263449; }
-        tr:last-child td { border-bottom:none; }
-        .mono { font-family:ui-monospace,monospace; font-size:12px; }
-        .st { font-size:12px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
-        .st.PENDING { background:#78350f; color:var(--warn); }
-        .st.RESOLVED { background:#14532d; color:var(--ok); }
-        .st.FAILED { background:#7f1d1d; color:var(--bad); }
-        .st.COMPLETED { background:#14532d; color:var(--ok); }
-        button { background:var(--accent); color:#082f49; border:none; padding:9px 16px;
-                 border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; }
-        button:hover { background:#7dd3fc; }
-        .note { background:#172554; border:1px solid #1e40af; border-radius:10px; padding:12px 14px;
-                font-size:13px; color:#bfdbfe; margin:14px 0; line-height:1.7; }
-        .empty { padding:20px; color:var(--dim); font-size:13px; text-align:center;
-                 background:var(--card); border:1px solid var(--line); border-radius:12px; }
-        .foot { margin-top:24px; color:var(--dim); font-size:12px; line-height:1.7; }
-    </style>
+<meta charset="UTF-8">
+<title>card-payment-service · 승인 관제</title>
+<style>
+:root{--bg:#0b0f16;--panel:#111823;--panel2:#0d141d;--line:#1e2937;--line2:#141c27;
+--tx:#d8e2ef;--dim:#7d8da3;--mut:#54637a;--ok:#3ddc97;--warn:#f0b429;--bad:#f2555a;--acc:#4d9fff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);
+font:13px/1.5 'SF Mono',ui-monospace,'Noto Sans KR',monospace}
+.nav{display:flex;align-items:center;gap:2px;background:var(--panel2);
+border-bottom:1px solid var(--line);padding:0 14px;height:42px;position:sticky;top:0;z-index:9}
+.nav .brand{white-space:nowrap;font-size:12px;letter-spacing:.14em;color:var(--dim);margin-right:18px;font-weight:600}
+.nav a{color:var(--mut);text-decoration:none;padding:6px 11px;border-radius:4px;font-size:12px}
+.nav a:hover{color:var(--tx);background:#16202d}
+.nav a.on{color:var(--acc);background:#132132}
+.nav .right{white-space:nowrap;margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;color:var(--mut)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot.up{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.dot.deg{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+.wrap{padding:18px 20px 40px}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+.head h1{font-size:15px;font-weight:600;margin:0}
+.head .meta{font-size:11px;color:var(--mut)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+background:var(--line);border:1px solid var(--line);margin-bottom:20px}
+.tile{background:var(--panel);padding:12px 14px}
+.tile .k{font-size:10px;letter-spacing:.1em;color:var(--mut);text-transform:uppercase}
+.tile .v{font-size:21px;margin-top:5px;font-weight:600}
+.tile .v.ok{color:var(--ok)}.tile .v.warn{color:var(--warn)}.tile .v.bad{color:var(--bad)}
+.tile.alert{background:#1b1508;border-left:2px solid var(--warn)}
+.tile.crit{background:#1c0f11;border-left:2px solid var(--bad)}
+.sec{font-size:11px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;
+margin:22px 0 8px;display:flex;align-items:center;gap:10px}
+.sec::after{content:'';flex:1;height:1px;background:var(--line)}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+button{background:#15304d;border:1px solid #1d4c7a;color:var(--acc);padding:6px 14px;
+border-radius:3px;font:12px 'SF Mono',ui-monospace,monospace;cursor:pointer;letter-spacing:.04em}
+button:hover{background:#1a3d63}
+.tw{overflow-x:auto;border:1px solid var(--line)}
+.tw table{border:none !important}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line)}
+th{text-align:left;font-size:10px;letter-spacing:.08em;color:var(--mut);text-transform:uppercase;
+padding:8px 12px;background:var(--panel2);border-bottom:1px solid var(--line);font-weight:600}
+td{padding:7px 12px;border-bottom:1px solid var(--line2);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#141d29}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.dim{color:var(--mut)}
+.pill{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px}
+.p-ok{background:#0d2e22;color:var(--ok);border:1px solid #164034}
+.p-warn{background:#2b2109;color:var(--warn);border:1px solid #453518}
+.p-bad{background:#2e1315;color:var(--bad);border:1px solid #45191d}
+.p-mut{background:#161f2b;color:var(--dim);border:1px solid #22303f}
+.empty{background:var(--panel);border:1px solid var(--line);padding:26px;text-align:center;color:var(--mut);font-size:12px}
+.wrapcell{white-space:normal;max-width:340px;color:var(--dim)}
+</style>
 </head>
 <body>
-    <h1>💳 승인 서비스 <span class="badge">card-payment-service :9091</span></h1>
-    <div class="sub">카드사 내부. FDS 판정 → 은행 출금 → 원장 기록을 조율하고, 실패하면 되돌린다.</div>
+<div class="nav">
+  <span class="brand">CARD PAYMENT SYSTEM</span>
+  <a href="http://localhost:6060">POS</a>
+  <a href="http://localhost:7070">VAN</a>
+  <a href="http://localhost:9090">FDS</a>
+  <a href="http://localhost:9091" class="on">AUTH</a>
+  <a href="http://localhost:9094">LEDGER</a>
+  <a href="http://localhost:8080">BANK</a>
+  <a href="http://localhost:8761">REGISTRY</a>
+  <span class="right">
+    <span><span class="dot" th:classappend="${degraded} ? 'deg' : 'up'"></span>
+      <span th:text="${degraded} ? 'DEGRADED' : 'UP'">UP</span></span>
+    <span id="clock"></span>
+  </span>
+</div>
 
-    <div class="kpi">
-        <div class="alert">대사 대기<b th:text="${pendingCount}">0</b></div>
-        <div class="danger">수동 확인 필요<b th:text="${failedCount}">0</b></div>
-        <div>멱등키 처리<b th:text="${#lists.size(keys)}">0</b></div>
-    </div>
+<div class="wrap">
+  <div class="head">
+    <h1>승인 관제</h1>
+    <span class="meta">card-payment-service · :9091</span>
+  </div>
 
-    <h2>결과가 불확실한 거래 (망취소 대상)</h2>
-    <form th:action="@{/console/reconcile}" method="post" style="margin-bottom:12px">
-        <button type="submit">망취소 대사 배치 실행</button>
-    </form>
-    <div class="note">
-        은행 호출이 타임아웃되면 <b>출금이 됐는지 알 수 없다</b>. 이때 함부로 취소를 보내면
-        출금되지 않은 계좌에 돈이 더 들어간다. 그래서 취소하지 않고 여기에 남긴 뒤,
-        배치가 은행에 <b>다시 확인한 다음</b> 취소할지 종결할지 결정한다.
-    </div>
+  <div class="tiles">
+    <div class="tile" th:classappend="${pendingCount > 0} ? 'alert' : ''">
+      <div class="k">대사 대기</div><div class="v warn" th:text="${pendingCount}">0</div></div>
+    <div class="tile" th:classappend="${failedCount > 0} ? 'crit' : ''">
+      <div class="k">수동 확인</div><div class="v bad" th:text="${failedCount}">0</div></div>
+    <div class="tile"><div class="k">대사 완료</div><div class="v ok" th:text="${resolvedCount}">0</div></div>
+    <div class="tile"><div class="k">멱등키</div><div class="v" th:text="${keyCount}">0</div></div>
+  </div>
 
-    <div th:if="${#lists.isEmpty(uncertain)}" class="empty">
-        불확실 거래가 없습니다. (은행 서비스를 내리고 결제하면 여기에 쌓입니다)
-    </div>
-    <table th:unless="${#lists.isEmpty(uncertain)}">
-        <tr><th>발생</th><th>거래ID</th><th>금액</th><th>사유</th><th>시도</th><th>상태</th><th>처리 결과</th></tr>
-        <tr th:each="u : ${uncertain}">
-            <td class="mono" th:text="${#temporals.format(u.createdAt,'HH:mm:ss')}">12:00:00</td>
-            <td class="mono" th:text="${#strings.abbreviate(u.transactionId,12)}">a1b2c3d4…</td>
-            <td th:text="${#numbers.formatInteger(u.amount,3,'COMMA')}">50,000</td>
-            <td class="mono" th:text="${u.reason}">BANK_CALL_FAILED</td>
-            <td th:text="${u.attemptCount}">0</td>
-            <td><span class="st" th:classappend="${u.status}" th:text="${u.status}">PENDING</span></td>
-            <td class="mono" th:text="${u.resolution} ?: '-'">-</td>
-        </tr>
-    </table>
+  <div class="sec">불확실 거래</div>
+  <form class="bar" th:action="@{/console/reconcile}" method="post">
+    <button type="submit">RUN RECONCILIATION</button>
+    <span class="dim">scheduler: 5m</span>
+  </form>
+  <div th:if="${#lists.isEmpty(uncertain)}" class="empty">NO UNCERTAIN TRANSACTIONS</div>
+  <div class="tw"><table th:unless="${#lists.isEmpty(uncertain)}">
+    <thead><tr><th>발생</th><th>거래ID</th><th>카드번호</th><th class="num">금액</th><th>사유</th><th class="num">시도</th><th>상태</th><th>처리결과</th></tr></thead>
+    <tbody>
+      <tr th:each="u : ${uncertain}">
+        <td class="dim" th:text="${#temporals.format(u.createdAt,'HH:mm:ss')}">12:00:00</td>
+        <td class="dim" th:title="${u.transactionId}" th:text="${#strings.abbreviate(u.transactionId,10)}">550e8400-…</td>
+        <td th:text="${u.cardNumber}">4111111111111111</td>
+        <td class="num" th:text="${#numbers.formatInteger(u.amount,1,'COMMA')}">50,000</td>
+        <td class="dim" th:text="${u.reason}">BANK_CALL_FAILED</td>
+        <td class="num" th:text="${u.attemptCount}">0</td>
+        <td>
+          <span class="pill" th:with="s=${u.status.name()}"
+                th:classappend="${s=='RESOLVED'} ? 'p-ok' : (${s=='FAILED'} ? 'p-bad' : 'p-warn')"
+                th:text="${u.status}">PENDING</span>
+        </td>
+        <td class="wrapcell" th:text="${u.resolution} ?: '—'">—</td>
+      </tr>
+    </tbody>
+  </table></div>
 
-    <h2>멱등키 처리 현황</h2>
-    <div th:if="${#lists.isEmpty(keys)}" class="empty">아직 처리된 결제가 없습니다.</div>
-    <table th:unless="${#lists.isEmpty(keys)}">
-        <tr><th>시각</th><th>멱등키</th><th>거래ID</th><th>금액</th><th>코드</th><th>상태</th></tr>
-        <tr th:each="k : ${keys}">
-            <td class="mono" th:text="${#temporals.format(k.createdAt,'HH:mm:ss')}">12:00:00</td>
-            <td class="mono" th:text="${k.idempotencyKey}">MERCHANT-001-000123</td>
-            <td class="mono" th:text="${k.transactionId} != null ? ${#strings.abbreviate(k.transactionId,12)} : '-'">-</td>
-            <td th:text="${k.amount} != null ? ${#numbers.formatInteger(k.amount,3,'COMMA')} : '-'">-</td>
-            <td class="mono" th:text="${k.responseCode} ?: '-'">-</td>
-            <td><span class="st" th:classappend="${k.status}" th:text="${k.status}">COMPLETED</span></td>
-        </tr>
-    </table>
+  <div class="sec">멱등키 <span class="dim" style="letter-spacing:0;text-transform:none">최근 50건</span></div>
+  <div th:if="${#lists.isEmpty(keys)}" class="empty">NO REQUESTS</div>
+  <div class="tw"><table th:unless="${#lists.isEmpty(keys)}">
+    <thead><tr><th>시각</th><th>멱등키</th><th>거래ID</th><th class="num">금액</th><th>코드</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr th:each="k : ${keys}">
+        <td class="dim" th:text="${#temporals.format(k.createdAt,'HH:mm:ss')}">12:00:00</td>
+        <td th:text="${k.idempotencyKey}">MERCHANT-001-000123</td>
+        <td class="dim" th:title="${k.transactionId}" th:text="${k.transactionId} != null ? ${#strings.abbreviate(k.transactionId,10)} : '—'">—</td>
+        <td class="num" th:text="${k.amount} != null ? ${#numbers.formatInteger(k.amount,1,'COMMA')} : '—'">—</td>
+        <td class="dim" th:text="${k.responseCode} ?: '—'">—</td>
+        <td><span class="pill" th:classappend="${k.status.name()=='COMPLETED'} ? 'p-ok' : 'p-warn'" th:text="${k.status}">COMPLETED</span></td>
+      </tr>
+    </tbody>
+  </table></div>
 
-    <h2>카드 마스터</h2>
-    <table>
-        <tr><th>카드번호</th><th>종류</th><th>상태</th><th>1회 한도</th><th>신용 한도</th><th>누적 사용액</th></tr>
-        <tr th:each="c : ${cards}">
-            <td class="mono" th:text="${c.cardNumber}">4111111111111111</td>
-            <td th:text="${c.cardType}">DEBIT</td>
-            <td th:text="${c.cardStatus}">ACTIVE</td>
-            <td th:text="${c.perTransactionLimit} != null ? ${#numbers.formatInteger(c.perTransactionLimit,3,'COMMA')} : '-'">-</td>
-            <td th:text="${c.creditLimit} != null ? ${#numbers.formatInteger(c.creditLimit,3,'COMMA')} : '-'">-</td>
-            <td th:text="${c.usedAmount} != null ? ${#numbers.formatInteger(c.usedAmount,3,'COMMA')} : '-'">-</td>
-        </tr>
-    </table>
+  <div class="sec">카드 마스터</div>
+  <div class="tw"><table>
+    <thead><tr><th>카드번호</th><th>종류</th><th>상태</th><th class="num">1회한도</th><th class="num">신용한도</th><th class="num">사용액</th><th class="num">잔여</th></tr></thead>
+    <tbody>
+      <tr th:each="c : ${cards}">
+        <td th:text="${c.cardNumber}">4111111111111111</td>
+        <td class="dim" th:text="${c.cardType}">DEBIT</td>
+        <td><span class="pill" th:classappend="${c.cardStatus.name()=='ACTIVE'} ? 'p-ok' : 'p-bad'" th:text="${c.cardStatus}">ACTIVE</span></td>
+        <td class="num" th:text="${c.perTransactionLimit} != null ? ${#numbers.formatInteger(c.perTransactionLimit,1,'COMMA')} : '—'">—</td>
+        <td class="num" th:text="${c.creditLimit} != null ? ${#numbers.formatInteger(c.creditLimit,1,'COMMA')} : '—'">—</td>
+        <td class="num" th:text="${c.usedAmount} != null ? ${#numbers.formatInteger(c.usedAmount,1,'COMMA')} : '—'">—</td>
+        <td class="num" th:text="${c.creditLimit} != null ? ${#numbers.formatInteger(c.remainingCredit(),1,'COMMA')} : '—'">—</td>
+      </tr>
+    </tbody>
+  </table></div>
+</div>
 
-    <div class="foot">
-        멱등키가 <b>COMPLETED</b>면 같은 키로 다시 요청이 와도 저장된 결과를 그대로 돌려주고 은행을 호출하지 않는다.<br>
-        신용카드는 은행 출금 없이 <b>누적 사용액</b>만 늘어난다. 실제 청구는 결제일 배치가 담당한다.
-    </div>
+<script>
+function c(){document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);}
+c();setInterval(c,1000);
+</script>
 </body>
 </html>

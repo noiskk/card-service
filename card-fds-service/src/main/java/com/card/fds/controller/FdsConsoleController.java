@@ -6,9 +6,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-/**
- * FDS 관제 화면 (시연용). 최근 판정 이력을 보여준다.
- */
+import java.util.List;
+
 @Controller
 @RequiredArgsConstructor
 public class FdsConsoleController {
@@ -17,9 +16,17 @@ public class FdsConsoleController {
 
     @GetMapping("/")
     public String console(Model model) {
-        var recent = fdsHistory.recent();
+        List<FdsHistory.Entry> recent = fdsHistory.recent();
+        long blocked = recent.stream().filter(e -> !e.isPassed()).count();
+
         model.addAttribute("entries", recent);
-        model.addAttribute("blockedCount", recent.stream().filter(e -> !e.isPassed()).count());
+        model.addAttribute("total", recent.size());
+        model.addAttribute("passed", recent.size() - blocked);
+        model.addAttribute("blocked", blocked);
+        model.addAttribute("blockRate", recent.isEmpty() ? "—"
+                : String.format("%.1f%%", blocked * 100.0 / recent.size()));
+        model.addAttribute("dupBlocked", recent.stream().filter(e -> "94".equals(e.getResponseCode())).count());
+        model.addAttribute("cardBlocked", recent.stream().filter(e -> "14".equals(e.getResponseCode())).count());
         return "fds-console";
     }
 }

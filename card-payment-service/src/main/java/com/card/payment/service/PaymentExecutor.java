@@ -86,7 +86,7 @@ public class PaymentExecutor {
                     .build());
         } catch (Exception e) {
             // FDS가 죽으면 승인 판단 자체가 불가능하다. 아직 돈은 안 움직였으므로 보상은 필요 없다.
-            throw new DownstreamCallFailedException(transactionId, request.getAmount(), e);
+            throw new DownstreamCallFailedException("card-fds-service", transactionId, request.getAmount(), e);
         }
     }
 
@@ -106,7 +106,7 @@ public class PaymentExecutor {
         } catch (Exception e) {
             // 출금이 실제로 됐는지 알 수 없다. 취소를 함부로 보내지 않고 대사 대상으로만 남긴다.
             compensationService.recordUncertainWithdrawal(transactionId, request);
-            throw new DownstreamCallFailedException(transactionId, request.getAmount(), e);
+            throw new DownstreamCallFailedException("bank-service", transactionId, request.getAmount(), e);
         }
 
         if (!withdrawResponse.isSuccess()) {

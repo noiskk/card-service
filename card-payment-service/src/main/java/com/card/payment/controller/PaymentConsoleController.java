@@ -16,10 +16,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 승인 서비스 관제 화면 (시연용).
- * 멱등키 처리 현황과, 결과가 불확실해 대사 대상으로 남은 거래를 보여준다.
- */
 @Controller
 @RequiredArgsConstructor
 public class PaymentConsoleController {
@@ -37,20 +33,25 @@ public class PaymentConsoleController {
 
         List<IdempotencyRecord> keys = idempotencyRepository.findAll().stream()
                 .sorted(Comparator.comparing(IdempotencyRecord::getCreatedAt).reversed())
-                .limit(20)
+                .limit(50)
                 .toList();
 
+        long pending = uncertain.stream().filter(u -> u.getStatus() == ReconciliationStatus.PENDING).count();
+        long failed = uncertain.stream().filter(u -> u.getStatus() == ReconciliationStatus.FAILED).count();
+        long resolved = uncertain.stream().filter(u -> u.getStatus() == ReconciliationStatus.RESOLVED).count();
+
         model.addAttribute("uncertain", uncertain);
-        model.addAttribute("pendingCount",
-                uncertain.stream().filter(u -> u.getStatus() == ReconciliationStatus.PENDING).count());
-        model.addAttribute("failedCount",
-                uncertain.stream().filter(u -> u.getStatus() == ReconciliationStatus.FAILED).count());
+        model.addAttribute("pendingCount", pending);
+        model.addAttribute("failedCount", failed);
+        model.addAttribute("resolvedCount", resolved);
         model.addAttribute("keys", keys);
+        model.addAttribute("keyCount", idempotencyRepository.count());
         model.addAttribute("cards", cardInfoRepository.findAll());
+        // 대사 대기나 수동 확인 건이 있으면 상단 상태를 DEGRADED로 표시한다
+        model.addAttribute("degraded", pending > 0 || failed > 0);
         return "payment-console";
     }
 
-    /** 화면에서 망취소 대사 배치를 즉시 실행한다. */
     @PostMapping("/console/reconcile")
     public String reconcile() {
         reconciliationScheduler.run("console");

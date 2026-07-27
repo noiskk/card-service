@@ -26,3 +26,6 @@ spring:
       initialize-schema: always
     job:
       enabled: false
+
+  thymeleaf:
+    cache: false

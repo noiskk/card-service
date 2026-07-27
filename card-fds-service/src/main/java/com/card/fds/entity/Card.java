@@ -84,8 +84,9 @@ public class Card {
     private LocalDateTime createdAt;
 
     /**
-     * 유효기간 (YYMM 형식)
+     * 유효기간.
+     * 카드 마스터는 card-payment-service가 소유하므로 컬럼 타입을 그쪽 정의에 맞춘다.
      */
-    @Column(nullable = false)
-    private LocalDate expiryDate;
+    @Column(name = "expiry_date")
+    private LocalDateTime expiryDate;
 }

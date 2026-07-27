@@ -69,7 +69,7 @@ class TransactionControllerTest {
                 .cardNum("1111").amount(10000L).merchantId("M1").cardType("DEBIT").build();
 
         when(paymentProcessorService.process(any()))
-                .thenThrow(new DownstreamCallFailedException("tx-2", 10000L, new RuntimeException("timeout")));
+                .thenThrow(new DownstreamCallFailedException("bank-service", "tx-2", 10000L, new RuntimeException("timeout")));
 
         mockMvc.perform(post("/api/card/payments/process")
                         .contentType(MediaType.APPLICATION_JSON)

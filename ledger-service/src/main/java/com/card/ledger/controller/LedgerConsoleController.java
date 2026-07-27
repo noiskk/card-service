@@ -2,6 +2,8 @@ package com.card.ledger.controller;
 
 import com.card.ledger.batch.SettlementJobConfig;
 import com.card.ledger.entity.Authorization;
+import com.card.ledger.entity.AuthorizationStatus;
+import com.card.ledger.entity.Settlement;
 import com.card.ledger.repository.AuthorizationRepository;
 import com.card.ledger.repository.SettlementRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +23,6 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 원장 관제 화면 (시연용).
- * 승인/거절이 원장에 쌓이는 것과, 정산 배치가 가맹점별로 수수료를 떼는 과정을 보여준다.
- */
 @Controller
 @RequiredArgsConstructor
 @Slf4j
@@ -43,23 +41,34 @@ public class LedgerConsoleController {
                           Model model) {
         LocalDate date = (targetDate != null) ? targetDate : LocalDate.now();
 
-        List<Authorization> records = authorizationRepository.findAll().stream()
+        List<Authorization> all = authorizationRepository.findAll();
+        List<Authorization> records = all.stream()
                 .sorted(Comparator.comparing(Authorization::getCreatedAt).reversed())
-                .limit(30)
+                .limit(50)
                 .toList();
 
+        long approved = all.stream().filter(a -> a.getStatus() == AuthorizationStatus.APPROVED).count();
+        long approvedAmount = all.stream()
+                .filter(a -> a.getStatus() == AuthorizationStatus.APPROVED)
+                .mapToLong(Authorization::getAmount).sum();
+
+        List<Settlement> settlements = settlementRepository.findBySettlementDate(date);
+
         model.addAttribute("records", records);
+        model.addAttribute("total", all.size());
+        model.addAttribute("approved", approved);
+        model.addAttribute("rejected", all.size() - approved);
+        model.addAttribute("approvedAmount", approvedAmount);
+        model.addAttribute("approvalRate", all.isEmpty() ? "—"
+                : String.format("%.1f%%", approved * 100.0 / all.size()));
         model.addAttribute("targetDate", date);
-        model.addAttribute("settlements", settlementRepository.findBySettlementDate(date));
-        model.addAttribute("approvedCount",
-                records.stream().filter(r -> "00".equals(r.getResponseCode())).count());
+        model.addAttribute("settlements", settlements);
+        model.addAttribute("payoutTotal", settlements.stream().mapToLong(Settlement::getPayoutAmount).sum());
         return "ledger-console";
     }
 
-    /** 화면에서 정산 배치를 직접 돌려본다. */
     @PostMapping("/console/settle")
-    public String settle(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate,
-                         Model model) {
+    public String settle(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate) {
         try {
             jobLauncher.run(settlementJob, new JobParametersBuilder()
                     .addString("targetDate", targetDate.toString())
