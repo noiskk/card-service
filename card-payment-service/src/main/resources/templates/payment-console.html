@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>승인 서비스 관제 — card-payment-service</title>
+    <style>
+        :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --text:#e2e8f0; --dim:#94a3b8;
+                --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --accent:#38bdf8; }
+        * { box-sizing:border-box; }
+        body { margin:0; padding:32px; background:var(--bg); color:var(--text);
+               font-family:'Noto Sans KR',-apple-system,sans-serif; }
+        h1 { font-size:20px; font-weight:500; margin:0 0 4px; }
+        h2 { font-size:15px; font-weight:500; margin:28px 0 12px; color:var(--dim); }
+        .sub { color:var(--dim); font-size:13px; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px;
+                 background:#0369a1; color:#e0f2fe; margin-left:8px; }
+        .kpi { display:flex; gap:12px; margin:16px 0; }
+        .kpi div { background:var(--card); border:1px solid var(--line); border-radius:10px;
+                   padding:12px 18px; font-size:13px; color:var(--dim); }
+        .kpi b { display:block; font-size:22px; font-weight:500; margin-top:2px; color:var(--text); }
+        .kpi .alert b { color:var(--warn); }
+        .kpi .danger b { color:var(--bad); }
+        table { width:100%; border-collapse:collapse; background:var(--card);
+                border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+        th { text-align:left; font-weight:500; font-size:12px; color:var(--dim);
+             padding:10px 12px; border-bottom:1px solid var(--line); }
+        td { padding:10px 12px; font-size:13px; border-bottom:1px solid #263449; }
+        tr:last-child td { border-bottom:none; }
+        .mono { font-family:ui-monospace,monospace; font-size:12px; }
+        .st { font-size:12px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+        .st.PENDING { background:#78350f; color:var(--warn); }
+        .st.RESOLVED { background:#14532d; color:var(--ok); }
+        .st.FAILED { background:#7f1d1d; color:var(--bad); }
+        .st.COMPLETED { background:#14532d; color:var(--ok); }
+        button { background:var(--accent); color:#082f49; border:none; padding:9px 16px;
+                 border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; }
+        button:hover { background:#7dd3fc; }
+        .note { background:#172554; border:1px solid #1e40af; border-radius:10px; padding:12px 14px;
+                font-size:13px; color:#bfdbfe; margin:14px 0; line-height:1.7; }
+        .empty { padding:20px; color:var(--dim); font-size:13px; text-align:center;
+                 background:var(--card); border:1px solid var(--line); border-radius:12px; }
+        .foot { margin-top:24px; color:var(--dim); font-size:12px; line-height:1.7; }
+    </style>
+</head>
+<body>
+    <h1>💳 승인 서비스 <span class="badge">card-payment-service :9091</span></h1>
+    <div class="sub">카드사 내부. FDS 판정 → 은행 출금 → 원장 기록을 조율하고, 실패하면 되돌린다.</div>
+
+    <div class="kpi">
+        <div class="alert">대사 대기<b th:text="${pendingCount}">0</b></div>
+        <div class="danger">수동 확인 필요<b th:text="${failedCount}">0</b></div>
+        <div>멱등키 처리<b th:text="${#lists.size(keys)}">0</b></div>
+    </div>
+
+    <h2>결과가 불확실한 거래 (망취소 대상)</h2>
+    <form th:action="@{/console/reconcile}" method="post" style="margin-bottom:12px">
+        <button type="submit">망취소 대사 배치 실행</button>
+    </form>
+    <div class="note">
+        은행 호출이 타임아웃되면 <b>출금이 됐는지 알 수 없다</b>. 이때 함부로 취소를 보내면
+        출금되지 않은 계좌에 돈이 더 들어간다. 그래서 취소하지 않고 여기에 남긴 뒤,
+        배치가 은행에 <b>다시 확인한 다음</b> 취소할지 종결할지 결정한다.
+    </div>
+
+    <div th:if="${#lists.isEmpty(uncertain)}" class="empty">
+        불확실 거래가 없습니다. (은행 서비스를 내리고 결제하면 여기에 쌓입니다)
+    </div>
+    <table th:unless="${#lists.isEmpty(uncertain)}">
+        <tr><th>발생</th><th>거래ID</th><th>금액</th><th>사유</th><th>시도</th><th>상태</th><th>처리 결과</th></tr>
+        <tr th:each="u : ${uncertain}">
+            <td class="mono" th:text="${#temporals.format(u.createdAt,'HH:mm:ss')}">12:00:00</td>
+            <td class="mono" th:text="${#strings.abbreviate(u.transactionId,12)}">a1b2c3d4…</td>
+            <td th:text="${#numbers.formatInteger(u.amount,3,'COMMA')}">50,000</td>
+            <td class="mono" th:text="${u.reason}">BANK_CALL_FAILED</td>
+            <td th:text="${u.attemptCount}">0</td>
+            <td><span class="st" th:classappend="${u.status}" th:text="${u.status}">PENDING</span></td>
+            <td class="mono" th:text="${u.resolution} ?: '-'">-</td>
+        </tr>
+    </table>
+
+    <h2>멱등키 처리 현황</h2>
+    <div th:if="${#lists.isEmpty(keys)}" class="empty">아직 처리된 결제가 없습니다.</div>
+    <table th:unless="${#lists.isEmpty(keys)}">
+        <tr><th>시각</th><th>멱등키</th><th>거래ID</th><th>금액</th><th>코드</th><th>상태</th></tr>
+        <tr th:each="k : ${keys}">
+            <td class="mono" th:text="${#temporals.format(k.createdAt,'HH:mm:ss')}">12:00:00</td>
+            <td class="mono" th:text="${k.idempotencyKey}">MERCHANT-001-000123</td>
+            <td class="mono" th:text="${k.transactionId} != null ? ${#strings.abbreviate(k.transactionId,12)} : '-'">-</td>
+            <td th:text="${k.amount} != null ? ${#numbers.formatInteger(k.amount,3,'COMMA')} : '-'">-</td>
+            <td class="mono" th:text="${k.responseCode} ?: '-'">-</td>
+            <td><span class="st" th:classappend="${k.status}" th:text="${k.status}">COMPLETED</span></td>
+        </tr>
+    </table>
+
+    <h2>카드 마스터</h2>
+    <table>
+        <tr><th>카드번호</th><th>종류</th><th>상태</th><th>1회 한도</th><th>신용 한도</th><th>누적 사용액</th></tr>
+        <tr th:each="c : ${cards}">
+            <td class="mono" th:text="${c.cardNumber}">4111111111111111</td>
+            <td th:text="${c.cardType}">DEBIT</td>
+            <td th:text="${c.cardStatus}">ACTIVE</td>
+            <td th:text="${c.perTransactionLimit} != null ? ${#numbers.formatInteger(c.perTransactionLimit,3,'COMMA')} : '-'">-</td>
+            <td th:text="${c.creditLimit} != null ? ${#numbers.formatInteger(c.creditLimit,3,'COMMA')} : '-'">-</td>
+            <td th:text="${c.usedAmount} != null ? ${#numbers.formatInteger(c.usedAmount,3,'COMMA')} : '-'">-</td>
+        </tr>
+    </table>
+
+    <div class="foot">
+        멱등키가 <b>COMPLETED</b>면 같은 키로 다시 요청이 와도 저장된 결과를 그대로 돌려주고 은행을 호출하지 않는다.<br>
+        신용카드는 은행 출금 없이 <b>누적 사용액</b>만 늘어난다. 실제 청구는 결제일 배치가 담당한다.
+    </div>
+</body>
+</html>

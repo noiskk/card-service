@@ -2,6 +2,8 @@ package com.card.fds.controller;
 
 import com.card.fds.dto.FdsRequestDto;
 import com.card.fds.dto.FdsResponse;
+import com.card.fds.exception.DomainException;
+import com.card.fds.service.FdsHistory;
 import com.card.fds.service.FdsInspectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,19 +26,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class FdsController {
 
     private final FdsInspectionService fdsInspectionService;
+    private final FdsHistory fdsHistory;
 
     @PostMapping("/inspect")
     public ResponseEntity<FdsResponse> inspect(@RequestBody FdsRequestDto request) {
-        // 차단 사유는 예외로 던져지고 GlobalExceptionHandler가 200 + 응답코드로 변환한다.
-        String realCardType = fdsInspectionService.inspect(request);
+        try {
+            String realCardType = fdsInspectionService.inspect(request);
+            fdsHistory.record(request.getCardNum(), request.getAmount(), "00", "정상 거래", true);
 
-        log.info("[FDS 통과] cardNum={}, cardType={}", request.getCardNum(), realCardType);
+            log.info("[FDS 통과] cardNum={}, cardType={}", request.getCardNum(), realCardType);
 
-        return ResponseEntity.ok(FdsResponse.builder()
-                .success(true)
-                .responseCode("00")
-                .message("정상 거래")
-                .cardType(realCardType)
-                .build());
+            return ResponseEntity.ok(FdsResponse.builder()
+                    .success(true)
+                    .responseCode("00")
+                    .message("정상 거래")
+                    .cardType(realCardType)
+                    .build());
+        } catch (DomainException e) {
+            // 차단 사유를 이력에 남기고 그대로 던진다. 응답 조립은 GlobalExceptionHandler가 한다.
+            fdsHistory.record(request.getCardNum(), request.getAmount(), e.getErrorCode(), e.getMessage(), false);
+            throw e;
+        }
     }
 }

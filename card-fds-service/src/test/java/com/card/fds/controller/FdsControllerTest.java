@@ -4,6 +4,7 @@ import com.card.fds.dto.FdsRequestDto;
 import com.card.fds.exception.CardNotFoundException;
 import com.card.fds.exception.DuplicateTransactionException;
 import com.card.fds.exception.GlobalExceptionHandler;
+import com.card.fds.service.FdsHistory;
 import com.card.fds.service.FdsInspectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +44,7 @@ class FdsControllerTest {
 
     @BeforeEach
     void setUp() {
-        FdsController controller = new FdsController(fdsInspectionService);
+        FdsController controller = new FdsController(fdsInspectionService, new FdsHistory());
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
