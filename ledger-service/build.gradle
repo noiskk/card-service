@@ -42,6 +42,8 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
+    // local 프로파일(H2 인메모리)로 MySQL 없이 띄우기 위해
+    runtimeOnly 'com.h2database:h2'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
