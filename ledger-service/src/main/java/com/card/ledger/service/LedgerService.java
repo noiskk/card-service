@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 import java.util.Optional;
 
 @Service
@@ -39,6 +41,7 @@ public class LedgerService {
                 .merchantId(req.getMerchantId())
                 .responseCode(req.getResponseCode())
                 .status(req.isSuccess() ? AuthorizationStatus.APPROVED : AuthorizationStatus.REJECTED)
+                .createdAt(LocalDateTime.now())
                 .build());
 
         log.info("원장 기록 - txId: {}, status: {}", saved.getTransactionId(), saved.getStatus());

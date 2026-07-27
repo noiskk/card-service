@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:ledgerdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+# 테스트는 서비스 레지스트리에 등록하지 않는다
+eureka:
+  client:
+    enabled: false
+
+settlement:
+  fee:
+    default-rate: 0.023
+    rates:
+      MERCHANT-VIP: 0.015
+
+logging:
+  level:
+    com.card.ledger: INFO

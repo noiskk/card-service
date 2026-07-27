@@ -9,6 +9,12 @@ spring:
     init:
       mode: never
 
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -39,3 +45,7 @@ logging:
 eureka:
   client:
     enabled: false
+
+# 테스트 중에 대사 스케줄러가 끼어들지 않게 아주 길게 잡는다
+reconciliation:
+  interval-ms: 3600000

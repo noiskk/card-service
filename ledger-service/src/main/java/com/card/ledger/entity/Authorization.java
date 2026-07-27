@@ -6,9 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import java.time.LocalDateTime;
 
 /**
@@ -21,7 +18,6 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@EntityListeners(AuditingEntityListener.class)
 public class Authorization {
 
     @Id
@@ -48,7 +44,10 @@ public class Authorization {
     @Column(name = "status", nullable = false)
     private AuthorizationStatus status;
 
-    @CreatedDate
+    /**
+     * 승인 시각. 감사용 메타데이터가 아니라 정산·대사의 기준이 되는 업무 데이터라
+     * 자동 주입(@CreatedDate)에 맡기지 않고 기록 시점에 명시적으로 넣는다.
+     */
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 }

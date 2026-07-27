@@ -1,6 +1,17 @@
 spring:
   application:
     name: card-payment-service
+
+  # Feign 타임아웃 — 응답 없는 하위 서비스에 매달려 있지 않게 한다.
+  # 타임아웃이 나야 '불확실 거래'로 분류되고 대사 대상이 된다.
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 3000
+
   
   datasource:
     url: jdbc:mysql://localhost:3306/card_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
@@ -22,6 +33,14 @@ spring:
     init:
       mode: always
       encoding: UTF-8
+
+  batch:
+    jdbc:
+      # 배치 메타데이터 테이블(BATCH_JOB_INSTANCE 등) 자동 생성
+      initialize-schema: always
+    job:
+      # 부팅하자마자 Job이 돌면 안 된다. 스케줄러/수동 트리거로만 실행한다.
+      enabled: false
 
 server:
   port: 9091
@@ -69,3 +88,4 @@ eureka:
     prefer-ip-address: true
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 20
+

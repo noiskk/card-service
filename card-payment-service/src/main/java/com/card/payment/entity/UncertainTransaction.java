@@ -79,4 +79,10 @@ public class UncertainTransaction {
         this.resolution = resolution;
         this.attemptCount++;
     }
+
+    /** 이번엔 정리하지 못했지만 다음 배치에서 다시 시도한다 (PENDING 유지) */
+    public void retryLater(String resolution) {
+        this.resolution = resolution;
+        this.attemptCount++;
+    }
 }
