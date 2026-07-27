@@ -1,7 +1,10 @@
 package com.card.payment.service;
 
 import com.card.payment.client.BankClient;
+import com.card.payment.client.FdsClient;
 import com.card.payment.client.LedgerClient;
+import com.card.payment.dto.FdsInspectRequest;
+import com.card.payment.dto.FdsInspectResponse;
 import com.card.payment.dto.LedgerRecordRequest;
 import com.card.payment.dto.LedgerRecordResponse;
 import com.card.payment.dto.PaymentRequest;
@@ -55,6 +58,8 @@ class PaymentIdempotencyIntegrationTest {
     private UncertainTransactionRepository uncertainRepository;
 
     @MockBean
+    private FdsClient fdsClient;
+    @MockBean
     private BankClient bankClient;
     @MockBean
     private LedgerClient ledgerClient;
@@ -73,6 +78,8 @@ class PaymentIdempotencyIntegrationTest {
                 .customerId(1L)
                 .build());
 
+        when(fdsClient.inspect(any(FdsInspectRequest.class))).thenReturn(
+                FdsInspectResponse.builder().success(true).responseCode("00").cardType("DEBIT").build());
         when(bankClient.withdraw(any())).thenReturn(withdrawSuccess());
         when(ledgerClient.record(any(LedgerRecordRequest.class)))
                 .thenReturn(LedgerRecordResponse.builder().id(1L).status("APPROVED").build());

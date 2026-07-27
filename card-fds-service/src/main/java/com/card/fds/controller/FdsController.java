@@ -1,10 +1,8 @@
 package com.card.fds.controller;
 
-import com.card.fds.client.PaymentFeignClient;
 import com.card.fds.dto.FdsRequestDto;
-import com.card.fds.exception.DownstreamCallFailedException;
+import com.card.fds.dto.FdsResponse;
 import com.card.fds.service.FdsInspectionService;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +11,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 이상거래 탐지(FDS) 엔드포인트.
+ *
+ * 사기 여부만 판정해 돌려주고 승인 흐름을 이어가지 않는다(leaf).
+ * 승인 오케스트레이션은 card-payment-service가 담당한다.
+ */
 @RestController
 @RequestMapping("/api/fds")
 @RequiredArgsConstructor
@@ -20,33 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class FdsController {
 
     private final FdsInspectionService fdsInspectionService;
-    private final PaymentFeignClient paymentFeignClient;
 
     @PostMapping("/inspect")
-    public ResponseEntity<?> inspect(@RequestBody FdsRequestDto request) {
-
-        // 1. FDS 메인 검증 수행 및 DB에서 '진짜' 카드 타입 획득
+    public ResponseEntity<FdsResponse> inspect(@RequestBody FdsRequestDto request) {
+        // 차단 사유는 예외로 던져지고 GlobalExceptionHandler가 200 + 응답코드로 변환한다.
         String realCardType = fdsInspectionService.inspect(request);
 
-        // 2. 반환 객체 생성
-        FdsRequestDto updatedRequest = FdsRequestDto.builder()
-                .cardNum(request.getCardNum())
-                .amount(request.getAmount())
-                .merchantId(request.getMerchantId())
+        log.info("[FDS 통과] cardNum={}, cardType={}", request.getCardNum(), realCardType);
+
+        return ResponseEntity.ok(FdsResponse.builder()
+                .success(true)
+                .responseCode("00")
+                .message("정상 거래")
                 .cardType(realCardType)
-                .idempotencyKey(request.getIdempotencyKey())
-                .build();
-
-        log.info("[FDS -> PAYMENT] 요청 이관: cardNum={}, cardType={}",
-                updatedRequest.getCardNum(), updatedRequest.getCardType());
-
-        // 3. 보정이 완료된 새로운 요청 객체를 PAYMENT 서비스로 이관
-        //    payment의 비즈니스 응답(한도초과 등)은 200으로 오므로 Feign이 예외를 안 던지고 그대로 relay된다.
-        //    payment가 진짜로 죽으면(5xx) FeignException -> 시스템 실패로 전파.
-        try {
-            return paymentFeignClient.processPayment(updatedRequest);
-        } catch (FeignException e) {
-            throw new DownstreamCallFailedException(e);
-        }
+                .build());
     }
 }

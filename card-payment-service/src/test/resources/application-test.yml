@@ -23,6 +23,10 @@ bank:
   service:
     url: http://localhost:8080
 
+fds:
+  service:
+    url: http://localhost:9090
+
 ledger:
   service:
     url: http://localhost:9094
@@ -30,3 +34,8 @@ ledger:
 logging:
   level:
     com.card.payment: INFO
+
+# 테스트는 서비스 레지스트리에 등록하지 않는다
+eureka:
+  client:
+    enabled: false

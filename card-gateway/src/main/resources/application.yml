@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: card-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          # 라우팅 규칙을 명시적으로 두기 위해 자동 등록은 끈다
+          enabled: false
+      routes:
+        # 승인 요청 (VAN이 호출하는 유일한 진입 경로)
+        - id: card-payment
+          uri: lb://card-payment-service
+          predicates:
+            - Path=/api/card/payments/**
+
+        # 이상거래 조회 (운영/디버깅용)
+        - id: card-fds
+          uri: lb://card-fds-service
+          predicates:
+            - Path=/api/fds/**
+
+        # 원장 조회 (대사·감사용)
+        - id: ledger
+          uri: lb://ledger-service
+          predicates:
+            - Path=/ledger/**
+
+server:
+  port: 9000
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

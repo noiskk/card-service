@@ -1,0 +1,35 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+/shelf/
+/workspace.xml
+bin/
+
+# Gradle
+.gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Java & Spring Boot (컴파일된 파일 및 로그)
+*.class
+*.log
+*.jar
+*.war
+*.zip
+*.tar.gz
+*.rar
+
+# Gradle wrapper는 반드시 추적한다 (위 *.jar보다 뒤에 와야 무시 규칙을 덮어쓴다)
+!gradle/wrapper/gradle-wrapper.jar
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Security
+.env
+application-secret.yml
+application-prod.yml

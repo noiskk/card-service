@@ -1,7 +1,10 @@
 package com.card.payment.service;
 
 import com.card.payment.client.BankClient;
+import com.card.payment.client.FdsClient;
 import com.card.payment.client.LedgerClient;
+import com.card.payment.dto.FdsInspectRequest;
+import com.card.payment.dto.FdsInspectResponse;
 import com.card.payment.dto.LedgerRecordRequest;
 import com.card.payment.dto.PaymentRequest;
 import com.card.payment.dto.PaymentResponse;
@@ -44,6 +47,9 @@ class PaymentExecutorTest {
     private CardInfoRepository cardInfoRepository;
 
     @Mock
+    private FdsClient fdsClient;
+
+    @Mock
     private BankClient bankClient;
 
     @Mock
@@ -62,6 +68,10 @@ class PaymentExecutorTest {
 
     @BeforeEach
     void setUp() {
+        // FDS는 기본적으로 통과. cardType=null이면 실행기가 요청값을 그대로 쓴다.
+        // FDS 차단/장애 테스트는 이 스텁을 덮어쓰므로 lenient()로 둔다(strict stubs 위반 방지).
+        lenient().when(fdsClient.inspect(any(FdsInspectRequest.class))).thenReturn(fdsPass(null));
+
         debitCard = debitCard(1000000L);
         // 신용카드: 1회 한도 50만, 신용한도 500만, 사용액 100만 → 잔여 400만
         creditCard = creditCard(500000L, 5000000L, 1000000L);
@@ -366,6 +376,59 @@ class PaymentExecutorTest {
         assertThat(recorded.getMerchantId()).isEqualTo("MERCHANT-001");
         assertThat(recorded.getResponseCode()).isEqualTo("00");
         assertThat(recorded.isSuccess()).isTrue();
+    }
+
+    @Test
+    @DisplayName("FDS가 차단하면 출금 없이 거절 원장만 남긴다")
+    void fdsBlocked_rejectsWithoutWithdraw() {
+        when(fdsClient.inspect(any(FdsInspectRequest.class))).thenReturn(
+                FdsInspectResponse.builder()
+                        .success(false).responseCode("94").message("중복 거래 의심").build());
+
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
+
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getResponseCode()).isEqualTo("94");
+
+        verify(cardInfoRepository, never()).findByCardNumber(anyString());
+        verify(bankClient, never()).withdraw(any(WithdrawRequest.class));
+        verify(ledgerClient).record(any(LedgerRecordRequest.class));
+    }
+
+    @Test
+    @DisplayName("FDS가 알려준 카드 타입이 요청값보다 우선한다")
+    void fdsCardTypeOverridesRequest() {
+        // 요청은 DEBIT라고 주장하지만 실제로는 CREDIT 카드
+        debitPaymentRequest.setCardNum("6011111111111117");
+        when(fdsClient.inspect(any(FdsInspectRequest.class))).thenReturn(fdsPass("CREDIT"));
+        when(cardInfoRepository.findByCardNumber("6011111111111117"))
+                .thenReturn(Optional.of(creditCard));
+
+        PaymentResponse response = paymentExecutor.execute(debitPaymentRequest);
+
+        assertThat(response.isSuccess()).isTrue();
+        // 신용카드로 처리됐으므로 은행 출금은 일어나지 않는다
+        verify(bankClient, never()).withdraw(any(WithdrawRequest.class));
+        assertThat(creditCard.getUsedAmount()).isEqualTo(1050000L);
+    }
+
+    @Test
+    @DisplayName("FDS 호출이 실패하면 승인 불가로 전파하고 아무것도 기록하지 않는다")
+    void fdsCallFailed_propagates() {
+        when(fdsClient.inspect(any(FdsInspectRequest.class)))
+                .thenThrow(new RuntimeException("FDS 응답 없음"));
+
+        assertThatThrownBy(() -> paymentExecutor.execute(debitPaymentRequest))
+                .isInstanceOf(DownstreamCallFailedException.class);
+
+        verify(bankClient, never()).withdraw(any(WithdrawRequest.class));
+        verify(ledgerClient, never()).record(any(LedgerRecordRequest.class));
+        verifyNoInteractions(compensationService);
+    }
+
+    private FdsInspectResponse fdsPass(String cardType) {
+        return FdsInspectResponse.builder()
+                .success(true).responseCode("00").message("정상 거래").cardType(cardType).build();
     }
 
     private WithdrawResponse createWithdrawResponse(boolean success) {

@@ -51,3 +51,12 @@ springdoc:
     display-request-duration: true
     doc-expansion: none
 
+# 카드사 내부 서비스 레지스트리
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 20
