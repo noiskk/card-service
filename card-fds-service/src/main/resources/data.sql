@@ -14,3 +14,13 @@ INSERT INTO cards (id, card_number, credit_limit, used_amount, per_transaction_l
 (5, '5105105105105100', NULL, NULL, 500000, 'SUSPENDED', 'DEBIT', 1005, NOW(), '2027-12-31 00:00:00'),
 -- 신용카드: 신용한도 100만, 사용액 0, 1회 한도 30만
 (6, '4012888888881881', 1000000, 0, 300000, 'ACTIVE', 'CREDIT', 1006, NOW(), '2027-12-31 00:00:00');
+-- card_profiles: 야간 배치가 승인 원장에서 집계해 적재하는 것을 전제로 한 데이터.
+-- 이 프로젝트에서는 배치를 만들지 않고 시드로 대체한다(README에 명시).
+INSERT INTO card_profiles (card_number, avg_amount, max_amount, transaction_count, period_days, calculated_at) VALUES
+('4111111111111111',  45000, 300000,  128, 90, NOW()),
+('5555555555554444',  22000, 150000,   64, 90, NOW()),
+('6011111111111117', 180000, 900000,   96, 90, NOW()),
+('3530111333300000', 120000, 700000,   54, 90, NOW()),
+('5105105105105100',  30000, 200000,   12, 90, NOW()),
+-- 신규 카드: 표본이 적어 AMOUNT_ANOMALY 판정을 보류하는 케이스
+('4012888888881881',  50000, 100000,    2, 90, NOW());

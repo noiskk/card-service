@@ -44,6 +44,7 @@ tbody tr.blk{background:#180f11}
 .pill{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px}
 .p-ok{background:#0d2e22;color:var(--ok);border:1px solid #164034}
 .p-bad{background:#2e1315;color:var(--bad);border:1px solid #45191d}
+.p-warn{background:#2b2109;color:var(--warn);border:1px solid #453518}
 .rule{display:flex;gap:14px;flex-wrap:wrap}
 .rule div{background:var(--panel);border:1px solid var(--line);padding:8px 12px;font-size:11px;color:var(--dim)}
 .rule b{color:var(--tx);font-weight:600}
@@ -75,28 +76,40 @@ tbody tr.blk{background:#180f11}
     <div class="tile"><div class="k">통과</div><div class="v ok" th:text="${passed}">0</div></div>
     <div class="tile"><div class="k">차단</div><div class="v bad" th:text="${blocked}">0</div></div>
     <div class="tile"><div class="k">차단율</div><div class="v warn" th:text="${blockRate}">—</div></div>
-    <div class="tile"><div class="k">중복거래 94</div><div class="v" th:text="${dupBlocked}">0</div></div>
+    <div class="tile"><div class="k">검토</div><div class="v warn" th:text="${reviewCount}">0</div></div>
+    <div class="tile"><div class="k">평균 점수</div><div class="v" th:text="${avgScore}">—</div></div>
+    <div class="tile"><div class="k">이상거래 94</div><div class="v" th:text="${dupBlocked}">0</div></div>
     <div class="tile"><div class="k">카드상태 14</div><div class="v" th:text="${cardBlocked}">0</div></div>
   </div>
 
-  <div class="sec">탐지 규칙</div>
+  <div class="sec">룰 카탈로그 <span class="dim" style="letter-spacing:0;text-transform:none">점수 합산 · 40 이상 검토 · 70 이상 차단</span></div>
   <div class="rule">
-    <div><b>VELOCITY</b> · 동일 카드 <span>3s</span> 내 재요청 → 94</div>
-    <div><b>CARD_STATUS</b> · 미등록 / 정지 카드 → 14</div>
-    <div><b>TYPE_RESOLVE</b> · 카드 종류 DB 기준 보정</div>
+    <div><b>VELOCITY_COUNT</b> · 1분 내 4건 이상 <span>+60</span></div>
+    <div><b>CARD_TESTING</b> · 1분 내 소액 3건 이상 <span>+50</span></div>
+    <div><b>VELOCITY_AMOUNT</b> · 10분 내 누적 300만 초과 <span>+50</span></div>
+    <div><b>MERCHANT_DIVERSITY</b> · 5분 내 가맹점 3곳 이상 <span>+40</span></div>
+    <div><b>AMOUNT_ANOMALY</b> · 평소 평균의 5배 초과 <span>+30</span></div>
+    <div><b>MIDNIGHT_HIGH_AMOUNT</b> · 00~06시 100만 초과 <span>+25</span></div>
+    <div><b>CARD_STATUS</b> · 미등록 / 정지 → 즉시 차단</div>
   </div>
 
   <div class="sec">판정 이력 <span class="dim" style="letter-spacing:0;text-transform:none">최근 50건</span></div>
   <div th:if="${#lists.isEmpty(entries)}" class="empty">NO INSPECTIONS</div>
   <div class="tw"><table th:unless="${#lists.isEmpty(entries)}">
-    <thead><tr><th>시각</th><th>카드번호</th><th class="num">금액</th><th>코드</th><th>판정</th><th>사유</th></tr></thead>
+    <thead><tr><th>시각</th><th>카드번호</th><th class="num">금액</th><th>코드</th><th>판정</th><th class="num">점수</th><th>적발 룰</th><th>사유</th></tr></thead>
     <tbody>
       <tr th:each="e : ${entries}" th:classappend="${!e.passed} ? 'blk' : ''">
         <td class="dim" th:text="${#temporals.format(e.at,'HH:mm:ss')}">12:00:00</td>
         <td th:text="${e.cardNum}">4111111111111111</td>
         <td class="num" th:text="${e.amount} != null ? ${#numbers.formatDecimal(e.amount,1,'COMMA',0,'POINT')} : '—'">50,000</td>
         <td class="dim" th:text="${e.responseCode}">00</td>
-        <td><span class="pill" th:classappend="${e.passed} ? 'p-ok' : 'p-bad'" th:text="${e.passed} ? 'PASS' : 'BLOCK'">PASS</span></td>
+        <td>
+          <span class="pill" th:with="d=${e.decision}"
+                th:classappend="${d=='BLOCK'} ? 'p-bad' : (${d=='REVIEW'} ? 'p-warn' : 'p-ok')"
+                th:text="${e.decision}">APPROVE</span>
+        </td>
+        <td class="num" th:text="${e.riskScore}">0</td>
+        <td class="dim" th:text="${e.hitRules} ?: '—'">—</td>
         <td class="dim" th:text="${e.message}">정상 거래</td>
       </tr>
     </tbody>

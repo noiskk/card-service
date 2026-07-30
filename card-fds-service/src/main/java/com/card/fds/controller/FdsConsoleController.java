@@ -27,6 +27,10 @@ public class FdsConsoleController {
                 : String.format("%.1f%%", blocked * 100.0 / recent.size()));
         model.addAttribute("dupBlocked", recent.stream().filter(e -> "94".equals(e.getResponseCode())).count());
         model.addAttribute("cardBlocked", recent.stream().filter(e -> "14".equals(e.getResponseCode())).count());
+        model.addAttribute("reviewCount",
+                recent.stream().filter(e -> "REVIEW".equals(e.getDecision())).count());
+        model.addAttribute("avgScore", recent.isEmpty() ? "—"
+                : String.valueOf(Math.round(recent.stream().mapToInt(FdsHistory.Entry::getRiskScore).average().orElse(0))));
         return "fds-console";
     }
 }

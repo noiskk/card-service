@@ -3,6 +3,8 @@ package com.card.fds.controller;
 import com.card.fds.dto.FdsRequestDto;
 import com.card.fds.dto.FdsResponse;
 import com.card.fds.exception.DomainException;
+import com.card.fds.exception.SuspiciousTransactionException;
+import com.card.fds.rule.FdsEvaluation;
 import com.card.fds.service.FdsHistory;
 import com.card.fds.service.FdsInspectionService;
 import lombok.RequiredArgsConstructor;
@@ -31,21 +33,42 @@ public class FdsController {
     @PostMapping("/inspect")
     public ResponseEntity<FdsResponse> inspect(@RequestBody FdsRequestDto request) {
         try {
-            String realCardType = fdsInspectionService.inspect(request);
-            fdsHistory.record(request.getCardNum(), request.getAmount(), "00", "정상 거래", true);
+            FdsInspectionService.FdsInspectionResult result = fdsInspectionService.inspect(request);
+            FdsEvaluation evaluation = result.evaluation();
 
-            log.info("[FDS 통과] cardNum={}, cardType={}", request.getCardNum(), realCardType);
+            fdsHistory.record(request.getCardNum(), request.getAmount(), "00",
+                    describe(evaluation), true,
+                    evaluation.getDecision().name(), evaluation.getRiskScore(), evaluation.hitRuleNames());
 
             return ResponseEntity.ok(FdsResponse.builder()
                     .success(true)
                     .responseCode("00")
-                    .message("정상 거래")
-                    .cardType(realCardType)
+                    .message(describe(evaluation))
+                    .cardType(result.cardType())
+                    .decision(evaluation.getDecision().name())
+                    .riskScore(evaluation.getRiskScore())
+                    .hitRules(evaluation.hitRuleNames())
                     .build());
+
+        } catch (SuspiciousTransactionException e) {
+            fdsHistory.record(request.getCardNum(), request.getAmount(), e.getErrorCode(),
+                    e.getMessage(), false, "BLOCK", e.getRiskScore(), e.getHitRules());
+            throw e;
+
         } catch (DomainException e) {
-            // 차단 사유를 이력에 남기고 그대로 던진다. 응답 조립은 GlobalExceptionHandler가 한다.
-            fdsHistory.record(request.getCardNum(), request.getAmount(), e.getErrorCode(), e.getMessage(), false);
+            // 카드 없음/정지 등 확정 조건 — 점수 판정 이전에 걸린 건이라 점수가 없다
+            fdsHistory.record(request.getCardNum(), request.getAmount(), e.getErrorCode(),
+                    e.getMessage(), false, "BLOCK", 0, "CARD_STATUS");
             throw e;
         }
+    }
+
+    private String describe(FdsEvaluation evaluation) {
+        return switch (evaluation.getDecision()) {
+            case APPROVE -> "정상 거래";
+            // 승인은 하되 표시를 남긴다. 실무라면 추가 인증이나 사후 모니터링으로 넘어가는 구간.
+            case REVIEW -> "검토 대상 (%d점: %s)".formatted(evaluation.getRiskScore(), evaluation.hitRuleNames());
+            case BLOCK -> "차단";
+        };
     }
 }

@@ -60,3 +60,36 @@ eureka:
     prefer-ip-address: true
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 20
+
+# 이상거래 탐지 룰 임계치
+# 실무에서 임계치는 오탐률을 보며 계속 조정되므로 배포 없이 바꿀 수 있어야 한다.
+fds:
+  rule:
+    block-threshold: 70          # 이 점수 이상이면 차단
+    review-threshold: 40         # 이 점수 이상이면 승인하되 검토 대상 표시
+
+    velocity-window-minutes: 1
+    velocity-max-count: 3        # 이번 거래 포함 4건째부터 적발
+    velocity-score: 60
+
+    testing-window-minutes: 1
+    testing-amount-under: 10000
+    testing-max-count: 2         # 소액 3건째부터 적발
+    testing-score: 50
+
+    amount-window-minutes: 10
+    amount-max-total: 3000000
+    amount-score: 50
+
+    diversity-window-minutes: 5
+    diversity-max-merchants: 2   # 3곳째부터 적발
+    diversity-score: 40
+
+    anomaly-min-history: 3       # 프로파일 표본이 이보다 적으면 판정 보류
+    anomaly-multiplier: 5
+    anomaly-score: 30
+
+    midnight-from-hour: 0
+    midnight-to-hour: 6
+    midnight-amount-over: 1000000
+    midnight-score: 25
