@@ -61,22 +61,6 @@ card-payment-service :9091               ← 오케스트레이터
 
 ---
 
-## 📌 팀 프로젝트 → 개인 고도화
-
-우리FISA 팀 프로젝트에서 시작해(담당: FDS + Payment) 이후 개인적으로 정합성 부분을 보강했다.
-
-| | 팀 프로젝트 | 개인 고도화 |
-|---|---|---|
-| 모듈 | FDS + Payment (2개) | + gateway, eureka, ledger (5개) |
-| 승인 흐름 | FDS가 Payment로 포워딩 | Payment가 FDS·은행·원장을 조율, FDS는 판정만 |
-| 원장 | Payment의 로컬 테이블, `@Data` 가변 | 독립 서비스, INSERT-only 불변 |
-| 멱등성 | 없음 (재시도 = 이중결제) | 예약-후-실행 + STAN 멱등키 전파 |
-| 예외 | `try-catch`로 전부 96 처리 | Domain/Business/System 계층 |
-| 실패 복구 | 없음 | 보상 트랜잭션 + 망취소 대사 배치 |
-| 정산 | (확장 과제로만 언급) | Spring Batch로 구현 |
-
----
-
 ## 🔑 멱등성 (card-payment-service)
 
 네트워크가 끊기면 단말은 성공 여부를 모르고 재시도한다. 이를 새 결제로 처리하면 이중결제가 된다.
@@ -211,7 +195,7 @@ Reader는 **id 커서(keyset paging)**를 쓴다. 처리한 건이 PENDING에서
 
 ## 🛡 이상거래 탐지 (card-fds-service)
 
-판정만 반환하는 leaf다. 승인 흐름을 이어가지 않는다(팀 프로젝트에서는 Payment로 포워딩했다).
+판정만 반환하는 leaf다. 승인 흐름을 이어가지 않는다 — 사기 판정과 승인 오케스트레이션의 책임을 분리했다.
 
 | 규칙 | 내용 | 코드 |
 |---|---|---|
